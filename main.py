@@ -2,7 +2,7 @@ import jnius_config
 jnius_config.add_classpath('jedai-core/jedai-core-3.0-jar-with-dependencies.jar')
 
 from jnius import autoclass
-
+from timeit import default_timer as timer
 # Pipeline
     # F1-Extended Sorted Neighborhood
     # F2-Block Filtering
@@ -43,21 +43,59 @@ def printProfile(profiles):
         while attributesIterator.hasNext() :
             print(attributesIterator.next().toString())
 
-def F1():
-    return autoclass('org.scify.jedai.blockbuilding.ExtendedSortedNeighborhoodBlocking')
+def F1(amazonProfiles, googleProfiles, duplicatePropagation):
+    extendedSortedNeighborhoodBlocking = autoclass('org.scify.jedai.blockbuilding.ExtendedSortedNeighborhoodBlocking')()
+    # Timing block building
+    start = timer()
+    blocks = extendedSortedNeighborhoodBlocking.getBlocks(amazonProfiles,googleProfiles)
+    end = timer()
+    # Print stats
+    stats = autoclass('org.scify.jedai.utilities.BlocksPerformance')(blocks, duplicatePropagation)
+    stats.setStatistics()
+    stats.printStatistics(end-start, extendedSortedNeighborhoodBlocking.getMethodConfiguration(), extendedSortedNeighborhoodBlocking.getMethodName())
+    return blocks
 
-def F2():
-    return autoclass('org.scify.jedai.blockprocessing.blockcleaning.BlockFiltering')
+def F2(blocks):
+    blockFiltering = autoclass('org.scify.jedai.blockprocessing.blockcleaning.BlockFiltering')()
+    # Timing block cleaning
+    start = timer()
+    filtered = blockFiltering.refineBlocks(blocks)
+    end = timer()
+    print("Overhead time\t:\t", end-start)
+    return filtered
 
-def F3():
-    return autoclass('org.scify.jedai.blockprocessing.comparisoncleaning.ComparisonPropagation')
+def F3(filteredBlocks):
+    comparisonPropagation = autoclass('org.scify.jedai.blockprocessing.comparisoncleaning.ComparisonPropagation')()
+    # Timing comparison cleaning
+    start = timer()
+    compared = comparisonPropagation.refineBlocks(filteredBlocks)
+    end = timer()
+    print("Overhead time\t:\t", end-start)
+    return compared
 
-def F4():
-    return autoclass('org.scify.jedai.entitymatching.GroupLinkage')
+def F4(comparedBlocks):
+    # 00:01 ERROR: Problem loading embedding weights
+    # java.io.FileNotFoundException: file:\JedAI\jedai-core\jedai-core-3.0-jar-with-dependencies.jar!\embeddings\weights.txt
+        # model = autoclass('org.scify.jedai.utilities.enumerations.RepresentationModel').PRETRAINED_WORD_VECTORS
+        # simMetric = autoclass('org.scify.jedai.utilities.enumerations.SimilarityMetric').getModelDefaultSimMetric(model)
+        # groupLinkage = autoclass('org.scify.jedai.entitymatching.GroupLinkage')(0.1,amazonProfiles, googleProfiles, model, simMetric)
+    groupLinkage = autoclass('org.scify.jedai.entitymatching.GroupLinkage')(amazonProfiles, googleProfiles)
 
-def F5():
-    return autoclass('org.scify.jedai.entityclustering.RicochetSRClustering')
+    # Timing group linkage
+    start = timer()
+    similarityPairs = groupLinkage.executeComparisons(comparedBlocks)
+    end = timer()
+    print("Overhead time\t:\t", end-start)
+    return similarityPairs
 
+def F5(similarityPairs):
+    ricochet = autoclass('org.scify.jedai.entityclustering.RicochetSRClustering')()
+    # Timing entity clustering
+    start = timer()
+    clusters = ricochet.getDuplicates(similarityPairs)
+    end = timer()
+    print("Overhead time\t:\t", end-start)
+    return clusters
 
 # CSV files
 amazonProducts = loadFile('data/AmazonProducts.csv')
@@ -66,22 +104,40 @@ groundTruth = autoclass('org.scify.jedai.datareader.groundtruthreader.GtCSVReade
 groundTruth.setIgnoreFirstRow(True)
 groundTruth.setSeparator(',')
 
-# EntityProfile = autoclass('org.scify.jedai.datamodel.EntityProfile')
-# Attribute = autoclass('org.scify.jedai.datamodel.Attribute')
-
 # Get profiles of Amazon and Google
 amazonProfiles = amazonProducts.getEntityProfiles()
 googleProfiles = googleProducts.getEntityProfiles()
 
 # Get duplicates
 duplicates = groundTruth.getDuplicatePairs(amazonProfiles, googleProfiles)
-# duplicatePropagation = autoclass('org.scify.jedai.utilities.datastructures.BilateralDuplicatePropagation')()
+duplicatePropagation = autoclass('org.scify.jedai.utilities.datastructures.BilateralDuplicatePropagation')(groundTruth.getDuplicatePairs(None))
 
 # Build F1
-extendedSortedNeighborhoodBlocking = F1()()
+print("\n------------------------------------------------------------------------")
+print("F1: Block Building...")
+blocks = F1(amazonProfiles,googleProfiles,duplicatePropagation)
 
-# for i in extendedSortedNeighborhoodBlocking.getBlocks(amazonProfiles,googleProfiles):
-#     print(i.toString())
+# Build F2
+print("\n------------------------------------------------------------------------")
+print("F2: Block Cleaning...")
+filteredBlocks = F2(blocks)
+
+# Build F3
+print("\n------------------------------------------------------------------------")
+print("F3: Comparison Cleaning...")
+comparedBlocks = F3(filteredBlocks)
+
+# Build F4
+print("\n------------------------------------------------------------------------")
+print("F4: Entity Grouping...")
+similarityPairs = F4(comparedBlocks)
+
+# Build F5
+print("\n------------------------------------------------------------------------")
+print("F5: Entity Clustering...")
+clusters = F5(similarityPairs)
 
 
-
+# Similar records
+for i in range(0,similarityPairs.getNoOfComparisons()):
+    print(similarityPairs.getEntityIds1()[i], "\t\t", similarityPairs.getEntityIds2()[i], "\t\t", similarityPairs.getSimilarities()[i])
