@@ -80,8 +80,8 @@ duplicates = groundTruth.getDuplicatePairs(amazonProfiles, googleProfiles)
 # Build F1
 extendedSortedNeighborhoodBlocking = F1()()
 
-for i in extendedSortedNeighborhoodBlocking.getBlocks(amazonProfiles,googleProfiles):
-    print(i.toString())
+# for i in extendedSortedNeighborhoodBlocking.getBlocks(amazonProfiles,googleProfiles):
+#     print(i.toString())
 
 
 
