@@ -74,12 +74,10 @@ def F3(filteredBlocks):
     return compared
 
 def F4(comparedBlocks):
-    # 00:01 ERROR: Problem loading embedding weights
-    # java.io.FileNotFoundException: file:\JedAI\jedai-core\jedai-core-3.0-jar-with-dependencies.jar!\embeddings\weights.txt
-        # model = autoclass('org.scify.jedai.utilities.enumerations.RepresentationModel').PRETRAINED_WORD_VECTORS
-        # simMetric = autoclass('org.scify.jedai.utilities.enumerations.SimilarityMetric').getModelDefaultSimMetric(model)
-        # groupLinkage = autoclass('org.scify.jedai.entitymatching.GroupLinkage')(0.1,amazonProfiles, googleProfiles, model, simMetric)
-    groupLinkage = autoclass('org.scify.jedai.entitymatching.GroupLinkage')(amazonProfiles, googleProfiles)
+    model = autoclass('org.scify.jedai.utilities.enumerations.RepresentationModel').TOKEN_UNIGRAMS_TF_IDF
+    simMetric = autoclass('org.scify.jedai.utilities.enumerations.SimilarityMetric').getModelDefaultSimMetric(model)
+    groupLinkage = autoclass('org.scify.jedai.entitymatching.GroupLinkage')(0.1, amazonProfiles, googleProfiles, model, simMetric)
+    # groupLinkage = autoclass('org.scify.jedai.entitymatching.GroupLinkage')(amazonProfiles, googleProfiles)
 
     # Timing group linkage
     start = timer()
@@ -94,7 +92,10 @@ def F5(similarityPairs):
     start = timer()
     clusters = ricochet.getDuplicates(similarityPairs)
     end = timer()
-    print("Overhead time\t:\t", end-start)
+    # Print stats
+    stats = autoclass('org.scify.jedai.utilities.ClustersPerformance')(clusters, duplicatePropagation)
+    stats.setStatistics()
+    stats.printStatistics(end-start, ricochet.getMethodConfiguration(), ricochet.getMethodName())
     return clusters
 
 # CSV files
@@ -110,7 +111,7 @@ googleProfiles = googleProducts.getEntityProfiles()
 
 # Get duplicates
 duplicates = groundTruth.getDuplicatePairs(amazonProfiles, googleProfiles)
-duplicatePropagation = autoclass('org.scify.jedai.utilities.datastructures.BilateralDuplicatePropagation')(groundTruth.getDuplicatePairs(None))
+duplicatePropagation = autoclass('org.scify.jedai.utilities.datastructures.UnilateralDuplicatePropagation')(groundTruth.getDuplicatePairs(None))
 
 # Build F1
 print("\n------------------------------------------------------------------------")
@@ -137,7 +138,9 @@ print("\n-----------------------------------------------------------------------
 print("F5: Entity Clustering...")
 clusters = F5(similarityPairs)
 
-
-# Similar records
-for i in range(0,similarityPairs.getNoOfComparisons()):
-    print(similarityPairs.getEntityIds1()[i], "\t\t", similarityPairs.getEntityIds2()[i], "\t\t", similarityPairs.getSimilarities()[i])
+# autoclass('org.scify.jedai.utilities.PrintToFile').toCSV(amazonProfiles,googleProfiles,clusters, 'data/matches.csv')
+# for sim in similarityPairs.getSimilarities():
+#     print(sim)
+# Similarity between records
+# for i in range(0,similarityPairs.getNoOfComparisons()):
+#     print(similarityPairs.getEntityIds1()[i], "\t\t", similarityPairs.getEntityIds2()[i], "\t\t", similarityPairs.getSimilarities()[i])
