@@ -19,28 +19,32 @@ from timeit import default_timer as timer
     # 1362 rows                             3226 rows                           1300 rows
 
 
-def loadFile(filepath):
+def loadDataFile(filepath):
     """
-        Load CSV file (separator ','; attribute names in first row)
+        Load Data File serialized by JedAI
         Return CSV Entity
     """
-    dataReader = autoclass('org.scify.jedai.datareader.entityreader.EntityCSVReader')
-    csvReader = dataReader(filepath)
-    csvReader.setAttributeNamesInFirstRow(True)
-    csvReader.setSeparator(",")
-    csvReader.setIdIndex(0)
-    return csvReader
+    dataReader = autoclass('org.scify.jedai.datareader.entityreader.EntitySerializationReader')
+    return dataReader(filepath)
+
+def loadGtFile(filepath):
+    """
+        Load Ground Truth file serialized by JedAI
+        Return class
+    """
+    gtreader = autoclass('org.scify.jedai.datareader.groundtruthreader.GtSerializationReader')
+    return gtreader(filepath)
 
 def printProfile(profiles):
     """
         Print attributes of each record of a profile
     """
     profilesIterator = profiles.iterator()
-    while profilesIterator.hasNext() :
+    while profilesIterator.hasNext():
         profile = profilesIterator.next()
         print("\n\n" + profile.getEntityUrl())
         attributesIterator = profile.getAttributes().iterator()
-        while attributesIterator.hasNext() :
+        while attributesIterator.hasNext():
             print(attributesIterator.next().toString())
 
 def F1(amazonProfiles, googleProfiles, duplicatePropagation):
@@ -55,28 +59,33 @@ def F1(amazonProfiles, googleProfiles, duplicatePropagation):
     stats.printStatistics(end-start, extendedSortedNeighborhoodBlocking.getMethodConfiguration(), extendedSortedNeighborhoodBlocking.getMethodName())
     return blocks
 
-def F2(blocks):
+def F2(blocks, duplicatePropagation):
     blockFiltering = autoclass('org.scify.jedai.blockprocessing.blockcleaning.BlockFiltering')()
     # Timing block cleaning
     start = timer()
     filtered = blockFiltering.refineBlocks(blocks)
     end = timer()
-    print("Overhead time\t:\t", end-start)
+    stats = autoclass('org.scify.jedai.utilities.BlocksPerformance')(filtered, duplicatePropagation)
+    stats.setStatistics()
+    stats.printStatistics(end-start, blockFiltering.getMethodConfiguration(), blockFiltering.getMethodName())
     return filtered
 
-def F3(filteredBlocks):
+def F3(filteredBlocks, duplicatePropagation):
     comparisonPropagation = autoclass('org.scify.jedai.blockprocessing.comparisoncleaning.ComparisonPropagation')()
     # Timing comparison cleaning
     start = timer()
     compared = comparisonPropagation.refineBlocks(filteredBlocks)
     end = timer()
-    print("Overhead time\t:\t", end-start)
+    stats = autoclass('org.scify.jedai.utilities.BlocksPerformance')(compared, duplicatePropagation)
+    stats.setStatistics()
+    stats.printStatistics(end-start, comparisonPropagation.getMethodConfiguration(), comparisonPropagation.getMethodName())
     return compared
 
-def F4(comparedBlocks):
-    model = autoclass('org.scify.jedai.utilities.enumerations.RepresentationModel').TOKEN_UNIGRAMS_TF_IDF
+def F4(comparedBlocks, duplicatePropagation):
+    model = autoclass('org.scify.jedai.utilities.enumerations.RepresentationModel').PRETRAINED_WORD_VECTORS
     simMetric = autoclass('org.scify.jedai.utilities.enumerations.SimilarityMetric').getModelDefaultSimMetric(model)
     groupLinkage = autoclass('org.scify.jedai.entitymatching.GroupLinkage')(0.1, amazonProfiles, googleProfiles, model, simMetric)
+    groupLinkage.setSimilarityThreshold(0.1)
     # groupLinkage = autoclass('org.scify.jedai.entitymatching.GroupLinkage')(amazonProfiles, googleProfiles)
 
     # Timing group linkage
@@ -84,10 +93,12 @@ def F4(comparedBlocks):
     similarityPairs = groupLinkage.executeComparisons(comparedBlocks)
     end = timer()
     print("Overhead time\t:\t", end-start)
+    print("Total comparisons: ", similarityPairs.getNoOfComparisons())
+
     return similarityPairs
 
-def F5(similarityPairs):
-    ricochet = autoclass('org.scify.jedai.entityclustering.RicochetSRClustering')()
+def F5(similarityPairs, duplicatePropagation):
+    ricochet = autoclass('org.scify.jedai.entityclustering.RicochetSRClustering')(0.1)
     # Timing entity clustering
     start = timer()
     clusters = ricochet.getDuplicates(similarityPairs)
@@ -99,44 +110,42 @@ def F5(similarityPairs):
     return clusters
 
 # CSV files
-amazonProducts = loadFile('data/AmazonProducts.csv')
-googleProducts = loadFile('data/GoogleProducts.csv')
-groundTruth = autoclass('org.scify.jedai.datareader.groundtruthreader.GtCSVReader')('data/Amazon-Goodle-Products-PerfectMapping.csv')
-groundTruth.setIgnoreFirstRow(True)
-groundTruth.setSeparator(',')
+amazonProducts = loadDataFile('data/amazonProfiles')
+googleProducts = loadDataFile('data/gpProfiles')
+groundTruth = loadGtFile('data/amazonGpIdDuplicates')
 
 # Get profiles of Amazon and Google
 amazonProfiles = amazonProducts.getEntityProfiles()
 googleProfiles = googleProducts.getEntityProfiles()
 
 # Get duplicates
-duplicates = groundTruth.getDuplicatePairs(amazonProfiles, googleProfiles)
-duplicatePropagation = autoclass('org.scify.jedai.utilities.datastructures.UnilateralDuplicatePropagation')(groundTruth.getDuplicatePairs(None))
+duplicates = groundTruth.getDuplicatePairs(amazonProfiles)
+duplicatePropagation = autoclass('org.scify.jedai.utilities.datastructures.BilateralDuplicatePropagation')(duplicates)
 
 # Build F1
 print("\n------------------------------------------------------------------------")
 print("F1: Block Building...")
-blocks = F1(amazonProfiles,googleProfiles,duplicatePropagation)
+blocks = F1(amazonProfiles, googleProfiles, duplicatePropagation)
 
 # Build F2
 print("\n------------------------------------------------------------------------")
 print("F2: Block Cleaning...")
-filteredBlocks = F2(blocks)
+filteredBlocks = F2(blocks, duplicatePropagation)
 
 # Build F3
 print("\n------------------------------------------------------------------------")
 print("F3: Comparison Cleaning...")
-comparedBlocks = F3(filteredBlocks)
+comparedBlocks = F3(filteredBlocks, duplicatePropagation)
 
 # Build F4
 print("\n------------------------------------------------------------------------")
 print("F4: Entity Grouping...")
-similarityPairs = F4(comparedBlocks)
+similarityPairs = F4(comparedBlocks, duplicatePropagation)
 
 # Build F5
 print("\n------------------------------------------------------------------------")
 print("F5: Entity Clustering...")
-clusters = F5(similarityPairs)
+clusters = F5(similarityPairs, duplicatePropagation)
 
 # autoclass('org.scify.jedai.utilities.PrintToFile').toCSV(amazonProfiles,googleProfiles,clusters, 'data/matches.csv')
 # for sim in similarityPairs.getSimilarities():
