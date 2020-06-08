@@ -48,7 +48,7 @@ def printProfile(profiles):
             print(attributesIterator.next().toString())
 
 def F1(amazonProfiles, googleProfiles, duplicatePropagation):
-    extendedSortedNeighborhoodBlocking = autoclass('org.scify.jedai.blockbuilding.ExtendedSortedNeighborhoodBlocking')()
+    extendedSortedNeighborhoodBlocking = autoclass('org.scify.jedai.blockbuilding.ExtendedSortedNeighborhoodBlocking')(40)
     # Timing block building
     start = timer()
     blocks = extendedSortedNeighborhoodBlocking.getBlocks(amazonProfiles,googleProfiles)
@@ -60,7 +60,7 @@ def F1(amazonProfiles, googleProfiles, duplicatePropagation):
     return blocks
 
 def F2(blocks, duplicatePropagation):
-    blockFiltering = autoclass('org.scify.jedai.blockprocessing.blockcleaning.BlockFiltering')()
+    blockFiltering = autoclass('org.scify.jedai.blockprocessing.blockcleaning.BlockFiltering')(0.8)
     # Timing block cleaning
     start = timer()
     filtered = blockFiltering.refineBlocks(blocks)
@@ -85,7 +85,7 @@ def F4(comparedBlocks, duplicatePropagation):
     model = autoclass('org.scify.jedai.utilities.enumerations.RepresentationModel').PRETRAINED_WORD_VECTORS
     simMetric = autoclass('org.scify.jedai.utilities.enumerations.SimilarityMetric').getModelDefaultSimMetric(model)
     groupLinkage = autoclass('org.scify.jedai.entitymatching.GroupLinkage')(0.1, amazonProfiles, googleProfiles, model, simMetric)
-    groupLinkage.setSimilarityThreshold(0.1)
+    # groupLinkage.setSimilarityThreshold(0.1)
     # groupLinkage = autoclass('org.scify.jedai.entitymatching.GroupLinkage')(amazonProfiles, googleProfiles)
 
     # Timing group linkage
@@ -99,6 +99,7 @@ def F4(comparedBlocks, duplicatePropagation):
 
 def F5(similarityPairs, duplicatePropagation):
     ricochet = autoclass('org.scify.jedai.entityclustering.RicochetSRClustering')(0.1)
+    # ricochet = autoclass('org.scify.jedai.entityclustering.UniqueMappingClustering')(0.1)
     # Timing entity clustering
     start = timer()
     clusters = ricochet.getDuplicates(similarityPairs)
@@ -119,7 +120,7 @@ amazonProfiles = amazonProducts.getEntityProfiles()
 googleProfiles = googleProducts.getEntityProfiles()
 
 # Get duplicates
-duplicates = groundTruth.getDuplicatePairs(amazonProfiles)
+duplicates = groundTruth.getDuplicatePairs(amazonProfiles, googleProfiles)
 duplicatePropagation = autoclass('org.scify.jedai.utilities.datastructures.BilateralDuplicatePropagation')(duplicates)
 
 # Build F1
