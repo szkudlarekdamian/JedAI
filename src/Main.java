@@ -1,20 +1,24 @@
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
-import org.apache.jena.base.Sys;
 import org.scify.jedai.blockbuilding.AbstractBlockBuilding;
 import org.scify.jedai.blockbuilding.ExtendedSortedNeighborhoodBlocking;
+import org.scify.jedai.blockbuilding.StandardBlocking;
 import org.scify.jedai.blockprocessing.AbstractBlockProcessing;
 import org.scify.jedai.blockprocessing.IBlockProcessing;
 import org.scify.jedai.blockprocessing.blockcleaning.BlockFiltering;
+import org.scify.jedai.blockprocessing.blockcleaning.ComparisonsBasedBlockPurging;
 import org.scify.jedai.blockprocessing.comparisoncleaning.AbstractComparisonCleaning;
+import org.scify.jedai.blockprocessing.comparisoncleaning.CardinalityNodePruning;
 import org.scify.jedai.blockprocessing.comparisoncleaning.ComparisonPropagation;
 import org.scify.jedai.datamodel.*;
 import org.scify.jedai.datareader.entityreader.EntitySerializationReader;
 import org.scify.jedai.datareader.groundtruthreader.GtSerializationReader;
 import org.scify.jedai.entityclustering.AbstractEntityClustering;
 import org.scify.jedai.entityclustering.RicochetSRClustering;
+import org.scify.jedai.entityclustering.UniqueMappingClustering;
 import org.scify.jedai.entitymatching.AbstractEntityMatching;
 import org.scify.jedai.entitymatching.GroupLinkage;
+import org.scify.jedai.entitymatching.ProfileMatcher;
 import org.scify.jedai.utilities.BlocksPerformance;
 import org.scify.jedai.utilities.ClustersPerformance;
 import org.scify.jedai.utilities.datastructures.AbstractDuplicatePropagation;
@@ -32,6 +36,18 @@ import java.util.List;
 import java.util.Set;
 
 public class Main {
+
+    private static class Tuple {
+        public double fMeasure;
+        public double precision;
+        public double recall;
+
+        Tuple(double fMeasure, double precision, double recall) {
+            this.fMeasure = fMeasure;
+            this.precision = precision;
+            this.recall = recall;
+        }
+    }
 
     private final static String AMAZON_PROFILE_FILEPATH = "data/amazonProfiles";
     private final static String GOOGLE_PROFILE_FILEPATH = "data/gpProfiles";
@@ -89,7 +105,7 @@ public class Main {
         return similarityPairs;
     }
 
-    private static double entityClustering(AbstractEntityClustering clusteringMethod,
+    private static Tuple entityClustering(AbstractEntityClustering clusteringMethod,
                                            SimilarityPairs similarityPairs,
                                            AbstractDuplicatePropagation duplicatePropagation) {
         Instant start = Instant.now();
@@ -102,10 +118,12 @@ public class Main {
             clustersPerformance.printStatistics(Duration.between(start, end).toMillis(), clusteringMethod.getMethodConfiguration(), clusteringMethod.getMethodName());
         }
 
-        return clustersPerformance.getFMeasure();
+        return new Tuple(clustersPerformance.getFMeasure(),
+                clustersPerformance.getPrecision(),
+                clustersPerformance.getRecall());
     }
 
-    public static double run(List<EntityProfile> profiles1,
+    public static Tuple run(List<EntityProfile> profiles1,
                              List<EntityProfile> profiles2,
                              AbstractDuplicatePropagation duplicatePropagation,
                              int windowSize,
@@ -132,28 +150,11 @@ public class Main {
         return entityClustering(clusteringMethod, similarityPairs, duplicatePropagation);
     }
 
-    public static void main(String[] args) {
-        EntitySerializationReader amazon = new EntitySerializationReader(AMAZON_PROFILE_FILEPATH);
-        EntitySerializationReader google = new EntitySerializationReader(GOOGLE_PROFILE_FILEPATH);
-        GtSerializationReader truth = new GtSerializationReader(GROUND_TRUTH_FILEPATH);
-
-        List<EntityProfile> amazonProfiles = amazon.getEntityProfiles();
-        List<EntityProfile> googleProfiles = google.getEntityProfiles();
-
-        Set<IdDuplicates> duplicates = truth.getDuplicatePairs(amazonProfiles, googleProfiles);
-
-        AbstractDuplicatePropagation duplicatePropagation = new BilateralDuplicatePropagation(duplicates);
-
-        verbose = false;
-
-//        double result = run(amazonProfiles, googleProfiles, duplicatePropagation,
-//                2, 0.5,
-//                RepresentationModel.TOKEN_UNIGRAMS_TF_IDF,
-//                SimilarityMetric.COSINE_SIMILARITY,
-//                0.1, 0.1);
-
-        int[] windowSizes = {2,3,5,7,9};//,11,13,15,17,19};
-        double[] thresholds = {0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9};
+    public static void gridSearch(List<EntityProfile> amazonProfiles,
+                                  List<EntityProfile> googleProfiles,
+                                  AbstractDuplicatePropagation duplicatePropagation) {
+        int[] windowSizes = {2,5,9};
+        double[] thresholds = {0.1, 0.3, 0.5, 0.7, 0.9};
         RepresentationModel[] representationModels = {RepresentationModel.TOKEN_UNIGRAMS_TF_IDF};//, RepresentationModel.TOKEN_UNIGRAMS};
         SimilarityMetric[] similarityMetrics = {SimilarityMetric.COSINE_SIMILARITY};//, SimilarityMetric.JACCARD_SIMILARITY};
 
@@ -167,7 +168,7 @@ public class Main {
                         for(double emT: thresholds) {
                             for(double ecT: thresholds) {
                                 Instant start = Instant.now();
-                                double result = run(amazonProfiles, googleProfiles, duplicatePropagation,
+                                Tuple result = run(amazonProfiles, googleProfiles, duplicatePropagation,
                                         windowSize, bfT, rm, sm, emT, ecT);
                                 Instant end = Instant.now();
                                 long elapsed = Duration.between(start, end).toMillis();
@@ -179,7 +180,9 @@ public class Main {
                                         sm.name(),
                                         String.valueOf(emT),
                                         String.valueOf(ecT),
-                                        String.valueOf(result)
+                                        String.valueOf(result.precision),
+                                        String.valueOf(result.recall),
+                                        String.valueOf(result.fMeasure)
                                 };
                                 recordsList.add(record);
                                 System.out.println(Arrays.toString(record));
@@ -197,62 +200,160 @@ public class Main {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    public static List<AbstractBlock> pipeBlockingInit(List<EntityProfile> profiles1,
+                                                       List<EntityProfile> profiles2,
+                                                       AbstractDuplicatePropagation duplicatePropagation) {
+        AbstractBlockBuilding blockBuilding = new ExtendedSortedNeighborhoodBlocking(2);
+        AbstractBlockProcessing blockFiltering = new BlockFiltering(0.3);
+        AbstractComparisonCleaning comparisonPropagation = new ComparisonPropagation();
+
+        Instant start = Instant.now();
+        List<AbstractBlock> blocks;
+        blocks = blockBuilding.getBlocks(profiles1, profiles2);
+        blocks = blockFiltering.refineBlocks(blocks);
+        blocks = comparisonPropagation.refineBlocks(blocks);
+        Instant end = Instant.now();
+
+        BlocksPerformance blockBuildingStats = new BlocksPerformance(blocks, duplicatePropagation);
+        blockBuildingStats.setStatistics();
+        blockBuildingStats.printStatistics(Duration.between(start,end).toMillis(),"TODO config", "Initial Blocking Pipeline");
+
+        return blocks;
+    }
+
+    public static List<AbstractBlock> pipeBlockingGeorge(List<EntityProfile> profiles1,
+                                                         List<EntityProfile> profiles2,
+                                                         AbstractDuplicatePropagation duplicatePropagation) {
+        IBlockProcessing blockCleaningMethod1 = new ComparisonsBasedBlockPurging(1.00f);
+        IBlockProcessing blockCleaningMethod2 = new BlockFiltering();
+        CardinalityNodePruning comparisonCleaningMethod = new CardinalityNodePruning();
+
+        Instant start = Instant.now();
+        List<AbstractBlock> blocks;
+        blocks = blockBuilding(new StandardBlocking(), profiles1, profiles2, duplicatePropagation);
+        blocks = blockCleaningMethod1.refineBlocks(blocks);
+        blocks = blockCleaningMethod2.refineBlocks(blocks);
+        blocks = blockProcessing(comparisonCleaningMethod, blocks, duplicatePropagation);
+        Instant end = Instant.now();
+
+        BlocksPerformance blockBuildingStats = new BlocksPerformance(blocks, duplicatePropagation);
+        blockBuildingStats.setStatistics();
+        blockBuildingStats.printStatistics(Duration.between(start,end).toMillis(),"TODO config", "Best result blocking pipeline");
+
+        return blocks;
+    }
+    public static Tuple pipeEntityResolutionInit(List<AbstractBlock> blocks,
+                                                 List<EntityProfile> profiles1,
+                                                 List<EntityProfile> profiles2,
+                                                 AbstractDuplicatePropagation duplicatePropagation) {
+        RepresentationModel representationModel = RepresentationModel.TOKEN_BIGRAMS_TF_IDF;
+        SimilarityMetric similarityMetric = SimilarityMetric.COSINE_SIMILARITY;
+        AbstractEntityMatching entityMatchingStrategy = new GroupLinkage(0.1, profiles1, profiles2, representationModel, similarityMetric);
+        AbstractEntityClustering clusteringMethod = new RicochetSRClustering(0.01);
+
+        Instant start = Instant.now();
+        SimilarityPairs similarityPairs = entityMatching(entityMatchingStrategy, blocks);
+        EquivalenceCluster[] clusters = clusteringMethod.getDuplicates(similarityPairs);
+        Instant end = Instant.now();
+
+        ClustersPerformance clustersPerformance = new ClustersPerformance(clusters, duplicatePropagation);
+        clustersPerformance.setStatistics();
+        clustersPerformance.printStatistics(Duration.between(start, end).toMillis(), "Initial entity resolution pipeline", "TODO config");
+
+        return new Tuple(clustersPerformance.getFMeasure(),
+                clustersPerformance.getPrecision(),
+                clustersPerformance.getRecall());
+    }
+
+    public static Tuple pipeEntityResolutionGeorge(List<AbstractBlock> blocks,
+                                                 List<EntityProfile> profiles1,
+                                                 List<EntityProfile> profiles2,
+                                                 AbstractDuplicatePropagation duplicatePropagation) {
+        RepresentationModel representationModel = RepresentationModel.TOKEN_BIGRAMS_TF_IDF;
+        SimilarityMetric similarityMetric = SimilarityMetric.COSINE_SIMILARITY;
+        AbstractEntityMatching entityMatchingStrategy = new ProfileMatcher(profiles1, profiles2, representationModel, similarityMetric);
+        AbstractEntityClustering clusteringMethod = new UniqueMappingClustering(0.05);
+
+        Instant start = Instant.now();
+        SimilarityPairs similarityPairs = entityMatching(entityMatchingStrategy, blocks);
+        EquivalenceCluster[] clusters = clusteringMethod.getDuplicates(similarityPairs);
+        Instant end = Instant.now();
+
+        ClustersPerformance clustersPerformance = new ClustersPerformance(clusters, duplicatePropagation);
+        clustersPerformance.setStatistics();
+        clustersPerformance.printStatistics(Duration.between(start, end).toMillis(), "Best entity resolution pipeline","TODO config");
+
+        return new Tuple(clustersPerformance.getFMeasure(),
+                clustersPerformance.getPrecision(),
+                clustersPerformance.getRecall());
+    }
+
+    public static void main(String[] args) {
+        EntitySerializationReader amazon = new EntitySerializationReader(AMAZON_PROFILE_FILEPATH);
+        EntitySerializationReader google = new EntitySerializationReader(GOOGLE_PROFILE_FILEPATH);
+        GtSerializationReader truth = new GtSerializationReader(GROUND_TRUTH_FILEPATH);
+
+        List<EntityProfile> amazonProfiles = amazon.getEntityProfiles();
+        List<EntityProfile> googleProfiles = google.getEntityProfiles();
+
+        Set<IdDuplicates> duplicates = truth.getDuplicatePairs(amazonProfiles, googleProfiles);
+
+        AbstractDuplicatePropagation duplicatePropagation = new BilateralDuplicatePropagation(duplicates);
+
+        verbose = false;
+
+        List<AbstractBlock> blocks;
 
 
-//        List<AbstractBlock> blocks;
-//
-//        /*
-//         * Extended Sorted Neighbourhood
-//         * window size param (constructor) [2, ...]
-//         */
-//        System.out.println("F1: Extended Sorted Neighbourhood");
-//        AbstractBlockBuilding blockBuilding = new ExtendedSortedNeighborhoodBlocking(2);
-//        System.out.println(blockBuilding.getMethodParameters());
-//
-//        blocks = blockBuilding(blockBuilding, amazonProfiles, googleProfiles, duplicatePropagation);
-//
-//        /*
-//         * Block Filtering
-//         * r (threshold??) parameter (constructor) [0, 1]
-//         */
-//        System.out.println("\n\nF2: Block Filtering");
-//        AbstractBlockProcessing blockFiltering = new BlockFiltering(0.5);
-//        System.out.println(blockFiltering.getMethodParameters());
-//
-//        blocks = blockProcessing(blockFiltering, blocks, duplicatePropagation);
-//
-//        /*
-//         * Comparison propagation
-//         * no parameters taken, nothing to optimize here
-//         */
-//        System.out.println("\n\nF3: Comparison propagation");
-//        AbstractComparisonCleaning comparisonPropagation = new ComparisonPropagation();
-//
-//        blocks = blockProcessing(comparisonPropagation, blocks, duplicatePropagation);
-//
-//        /*
-//         * Group linkage
-//         * Choose representation, similarity metric, threshold
-//         */
-//        System.out.println("\n\nF4: Group Linkage");
-//        RepresentationModel representationModel = RepresentationModel.TOKEN_UNIGRAMS_TF_IDF;
-//        SimilarityMetric similarityMetric = SimilarityMetric.getModelDefaultSimMetric(representationModel);
-//        AbstractEntityMatching entityMatchingStrategy = new GroupLinkage(0.1, amazonProfiles, googleProfiles, representationModel, similarityMetric);
-//
-//        SimilarityPairs similarityPairs = entityMatching(entityMatchingStrategy, blocks);
-//
-//        /*
-//         * Ricochet SR Clustering
-//         */
-//        System.out.println("\n\nF5: Ricochet SR Clustering");
-//        AbstractEntityClustering clusteringMethod = new RicochetSRClustering(0.1);
-//        System.out.println(clusteringMethod.getMethodParameters());
-//
-//        double result = entityClustering(clusteringMethod, similarityPairs, duplicatePropagation);
+        /*
+         * Pipeline 1 - given (initial) pipeline
+         */
+        blocks = pipeBlockingInit(amazonProfiles, googleProfiles, duplicatePropagation);
+        Tuple r1 = pipeEntityResolutionInit(blocks, amazonProfiles, googleProfiles, duplicatePropagation);
 
-//        System.out.println("\n\n");
-//        System.out.println("-----------------");
-//        System.out.println("Result [F1-score]: " + result);
-//        System.out.println("-----------------");
+        System.out.println("\n\n");
+        System.out.println("-----------------");
+        System.out.println("P1\tResult [F1-score]: " + r1.fMeasure);
+        System.out.println("-----------------");
+
+
+        /*
+         * Pipeline 2 - best pipeline
+         *  https://github.com/scify/JedAIToolkit/blob/master/src/test/java/org/scify/jedai/version3/BestConfigurationBlockingBasedWorkflowCcer.java
+         */
+
+        blocks = pipeBlockingGeorge(amazonProfiles, googleProfiles, duplicatePropagation);
+        Tuple r2 = pipeEntityResolutionGeorge(blocks, amazonProfiles, googleProfiles, duplicatePropagation);
+
+        System.out.println("\n\n");
+        System.out.println("-----------------");
+        System.out.println("P2\tResult [F1-score]: " + r2.fMeasure);
+        System.out.println("-----------------");
+
+        /*
+         * Pipeline 3
+         * Crossing - Init Blocking, George Entity Resolution
+         */
+        blocks = pipeBlockingInit(amazonProfiles, googleProfiles, duplicatePropagation);
+        Tuple r3 = pipeEntityResolutionGeorge(blocks, amazonProfiles, googleProfiles, duplicatePropagation);
+
+        System.out.println("\n\n");
+        System.out.println("-----------------");
+        System.out.println("P3\tResult [F1-score]: " + r3.fMeasure);
+        System.out.println("-----------------");
+
+        /*
+         * Pipeline 4
+         * Crossing - George Blocking, Init Entity Resolution
+         */
+        blocks = pipeBlockingGeorge(amazonProfiles, googleProfiles, duplicatePropagation);
+        Tuple r4 = pipeEntityResolutionInit(blocks, amazonProfiles, googleProfiles, duplicatePropagation);
+
+        System.out.println("\n\n");
+        System.out.println("-----------------");
+        System.out.println("P4\tResult [F1-score]: " + r4.fMeasure);
+        System.out.println("-----------------");
     }
 }
