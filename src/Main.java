@@ -355,5 +355,40 @@ public class Main {
         System.out.println("-----------------");
         System.out.println("P4\tResult [F1-score]: " + r4.fMeasure);
         System.out.println("-----------------");
+
+        /*
+         * Pipeline 5 & 6 - Resolve what is faulty - entity matching or entity clustering
+         */
+
+        blocks = pipeBlockingInit(amazonProfiles, googleProfiles, duplicatePropagation);
+
+        RepresentationModel representationModel = RepresentationModel.TOKEN_BIGRAMS_TF_IDF;
+        SimilarityMetric similarityMetric = SimilarityMetric.COSINE_SIMILARITY;
+
+        AbstractEntityMatching groupLinkage = new GroupLinkage(0.1, amazonProfiles, googleProfiles, representationModel, similarityMetric);
+        AbstractEntityMatching profileMatcher = new ProfileMatcher(amazonProfiles, googleProfiles, representationModel, similarityMetric);
+
+        AbstractEntityClustering ricochet = new RicochetSRClustering(0.05);
+        AbstractEntityClustering uniqueMappingClustering = new UniqueMappingClustering(0.05);
+
+        Instant start;
+        Instant end;
+        // p5
+        start = Instant.now();
+        SimilarityPairs sp5 = groupLinkage.executeComparisons(blocks);
+        EquivalenceCluster[] clusters5 = uniqueMappingClustering.getDuplicates(sp5);
+        end = Instant.now();
+        ClustersPerformance clustersPerformance5 = new ClustersPerformance(clusters5, duplicatePropagation);
+        clustersPerformance5.setStatistics();
+        clustersPerformance5.printStatistics(Duration.between(start, end).toMillis(), "Group Linkage + Unique Mapping Clustering","TODO config");
+
+        // p6
+        start = Instant.now();
+        SimilarityPairs sp6 = profileMatcher.executeComparisons(blocks);
+        EquivalenceCluster[] clusters6 = ricochet.getDuplicates(sp6);
+        end = Instant.now();
+        ClustersPerformance clustersPerformance6 = new ClustersPerformance(clusters6, duplicatePropagation);
+        clustersPerformance6.setStatistics();
+        clustersPerformance6.printStatistics(Duration.between(start, end).toMillis(), "Profile Matcher + Ricochet","TODO config");
     }
 }
