@@ -1,9 +1,9 @@
-public class Tuple {
+public class ResultTuple {
     public double fMeasure;
     public double precision;
     public double recall;
 
-    public Tuple(double fMeasure, double precision, double recall) {
+    public ResultTuple(double fMeasure, double precision, double recall) {
         this.fMeasure = fMeasure;
         this.precision = precision;
         this.recall = recall;

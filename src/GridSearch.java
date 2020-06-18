@@ -23,15 +23,15 @@ public class GridSearch {
                                   List<EntityProfile> googleProfiles,
                                   AbstractDuplicatePropagation duplicatePropagation) {
         int[] windowSizes = {2,3};
-        double[] thresholds = {0.05, 0.1, 0.15, 0.2, 0.25, 0.3};
-//        double[] thresholds = {0.3, 0.4, 0.5};
-//        double[] thresholds = {0.1, 0.3, 0.5};
+//        double[] thresholds = {0.05, 0.1, 0.15, 0.2};
+//        double[] thresholds = {0.35, 0.4};
+        double[] thresholds = {0.1, 0.3, 0.5};
 //        double[] entityThresholds = {0.01, 0.05, 0.1, 0.15};
-        double[] entityThresholds = {0.01, 0.05, 0.1};
-//        double[] entityThresholds = {0.1, 0.3, 0.5};
-//        RepresentationModel[] representationModels = {RepresentationModel.TOKEN_BIGRAMS_TF_IDF};
+//        double[] entityThresholds = {0.01, 0.05, 0.1};
+        double[] entityThresholds = {0.1, 0.3, 0.5};
+        RepresentationModel[] representationModels = {RepresentationModel.TOKEN_BIGRAMS_TF_IDF};
 //        RepresentationModel[] representationModels = {RepresentationModel.TOKEN_UNIGRAMS_TF_IDF};
-        RepresentationModel[] representationModels = {RepresentationModel.TOKEN_TRIGRAMS_TF_IDF};
+//        RepresentationModel[] representationModels = {RepresentationModel.TOKEN_TRIGRAMS_TF_IDF};
         SimilarityMetric[] similarityMetrics = {SimilarityMetric.COSINE_SIMILARITY};
 
         List<String[]> recordsList = new ArrayList<>();
@@ -44,7 +44,7 @@ public class GridSearch {
                         for(double emT: entityThresholds) {
                             for(double ecT: entityThresholds) {
                                 Instant start = Instant.now();
-                                Tuple result = Common.run(amazonProfiles, googleProfiles, duplicatePropagation,
+                                ResultTuple result = Common.run(amazonProfiles, googleProfiles, duplicatePropagation,
                                         windowSize, bfT, rm, sm, emT, ecT);
                                 Instant end = Instant.now();
                                 long elapsed = Duration.between(start, end).toMillis();

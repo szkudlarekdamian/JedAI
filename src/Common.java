@@ -12,7 +12,6 @@ import org.scify.jedai.datamodel.SimilarityPairs;
 import org.scify.jedai.datareader.entityreader.EntitySerializationReader;
 import org.scify.jedai.datareader.entityreader.IEntityReader;
 import org.scify.jedai.entityclustering.AbstractEntityClustering;
-import org.scify.jedai.entityclustering.RicochetSRClustering;
 import org.scify.jedai.entityclustering.UniqueMappingClustering;
 import org.scify.jedai.entitymatching.AbstractEntityMatching;
 import org.scify.jedai.entitymatching.GroupLinkage;
@@ -86,9 +85,9 @@ public class Common {
         return similarityPairs;
     }
 
-    public static Tuple entityClustering(AbstractEntityClustering clusteringMethod,
-                                          SimilarityPairs similarityPairs,
-                                          AbstractDuplicatePropagation duplicatePropagation) {
+    public static ResultTuple entityClustering(AbstractEntityClustering clusteringMethod,
+                                               SimilarityPairs similarityPairs,
+                                               AbstractDuplicatePropagation duplicatePropagation) {
         Instant start = Instant.now();
         EquivalenceCluster[] clusters = clusteringMethod.getDuplicates(similarityPairs);
         Instant end = Instant.now();
@@ -99,21 +98,21 @@ public class Common {
             clustersPerformance.printStatistics(Duration.between(start, end).toMillis(), clusteringMethod.getMethodConfiguration(), clusteringMethod.getMethodName());
         }
 
-        return new Tuple(clustersPerformance.getFMeasure(),
+        return new ResultTuple(clustersPerformance.getFMeasure(),
                 clustersPerformance.getPrecision(),
                 clustersPerformance.getRecall());
     }
 
     // grid search pipeline
-    public static Tuple run(List<EntityProfile> profiles1,
-                            List<EntityProfile> profiles2,
-                            AbstractDuplicatePropagation duplicatePropagation,
-                            int windowSize,
-                            double blockFilterThreshold,
-                            RepresentationModel representationModel,
-                            SimilarityMetric similarityMetric,
-                            double entityMatchingSimilarityThreshold,
-                            double entityClusteringSimilarityThreshold) {
+    public static ResultTuple run(List<EntityProfile> profiles1,
+                                  List<EntityProfile> profiles2,
+                                  AbstractDuplicatePropagation duplicatePropagation,
+                                  int windowSize,
+                                  double blockFilterThreshold,
+                                  RepresentationModel representationModel,
+                                  SimilarityMetric similarityMetric,
+                                  double entityMatchingSimilarityThreshold,
+                                  double entityClusteringSimilarityThreshold) {
 
         List<AbstractBlock> blocks;
 

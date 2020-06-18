@@ -1,4 +1,3 @@
-import org.apache.log4j.BasicConfigurator;
 import org.scify.jedai.blockbuilding.AbstractBlockBuilding;
 import org.scify.jedai.blockbuilding.ExtendedSortedNeighborhoodBlocking;
 import org.scify.jedai.blockbuilding.StandardBlocking;
@@ -77,10 +76,10 @@ public class Main {
 
         return blocks;
     }
-    public static Tuple pipeEntityResolutionInit(List<AbstractBlock> blocks,
-                                                 List<EntityProfile> profiles1,
-                                                 List<EntityProfile> profiles2,
-                                                 AbstractDuplicatePropagation duplicatePropagation) {
+    public static ResultTuple pipeEntityResolutionInit(List<AbstractBlock> blocks,
+                                                       List<EntityProfile> profiles1,
+                                                       List<EntityProfile> profiles2,
+                                                       AbstractDuplicatePropagation duplicatePropagation) {
         RepresentationModel representationModel = RepresentationModel.TOKEN_BIGRAMS_TF_IDF;
         SimilarityMetric similarityMetric = SimilarityMetric.COSINE_SIMILARITY;
         AbstractEntityMatching entityMatchingStrategy = new GroupLinkage(0.1, profiles1, profiles2, representationModel, similarityMetric);
@@ -95,15 +94,15 @@ public class Main {
         clustersPerformance.setStatistics();
         clustersPerformance.printStatistics(Duration.between(start, end).toMillis(), "Initial entity resolution pipeline", "TODO config");
 
-        return new Tuple(clustersPerformance.getFMeasure(),
+        return new ResultTuple(clustersPerformance.getFMeasure(),
                 clustersPerformance.getPrecision(),
                 clustersPerformance.getRecall());
     }
 
-    public static Tuple pipeEntityResolutionGeorge(List<AbstractBlock> blocks,
-                                                 List<EntityProfile> profiles1,
-                                                 List<EntityProfile> profiles2,
-                                                 AbstractDuplicatePropagation duplicatePropagation) {
+    public static ResultTuple pipeEntityResolutionGeorge(List<AbstractBlock> blocks,
+                                                         List<EntityProfile> profiles1,
+                                                         List<EntityProfile> profiles2,
+                                                         AbstractDuplicatePropagation duplicatePropagation) {
         RepresentationModel representationModel = RepresentationModel.TOKEN_BIGRAMS_TF_IDF;
         SimilarityMetric similarityMetric = SimilarityMetric.COSINE_SIMILARITY;
         AbstractEntityMatching entityMatchingStrategy = new ProfileMatcher(profiles1, profiles2, representationModel, similarityMetric);
@@ -118,7 +117,7 @@ public class Main {
         clustersPerformance.setStatistics();
         clustersPerformance.printStatistics(Duration.between(start, end).toMillis(), "Best entity resolution pipeline","TODO config");
 
-        return new Tuple(clustersPerformance.getFMeasure(),
+        return new ResultTuple(clustersPerformance.getFMeasure(),
                 clustersPerformance.getPrecision(),
                 clustersPerformance.getRecall());
     }
@@ -153,7 +152,7 @@ public class Main {
          * Pipeline 1 - given (initial) pipeline
          */
         blocks = pipeBlockingInit(amazonProfiles, googleProfiles, duplicatePropagation);
-        Tuple r1 = pipeEntityResolutionInit(blocks, amazonProfiles, googleProfiles, duplicatePropagation);
+        ResultTuple r1 = pipeEntityResolutionInit(blocks, amazonProfiles, googleProfiles, duplicatePropagation);
 
         System.out.println("\n\n");
         System.out.println("-----------------");
@@ -167,7 +166,7 @@ public class Main {
          */
 
         blocks = pipeBlockingGeorge(amazonProfiles, googleProfiles, duplicatePropagation);
-        Tuple r2 = pipeEntityResolutionGeorge(blocks, amazonProfiles, googleProfiles, duplicatePropagation);
+        ResultTuple r2 = pipeEntityResolutionGeorge(blocks, amazonProfiles, googleProfiles, duplicatePropagation);
 
         System.out.println("\n\n");
         System.out.println("-----------------");
@@ -179,7 +178,7 @@ public class Main {
          * Crossing - Init Blocking, George Entity Resolution
          */
         blocks = pipeBlockingInit(amazonProfiles, googleProfiles, duplicatePropagation);
-        Tuple r3 = pipeEntityResolutionGeorge(blocks, amazonProfiles, googleProfiles, duplicatePropagation);
+        ResultTuple r3 = pipeEntityResolutionGeorge(blocks, amazonProfiles, googleProfiles, duplicatePropagation);
 
         System.out.println("\n\n");
         System.out.println("-----------------");
@@ -191,7 +190,7 @@ public class Main {
          * Crossing - George Blocking, Init Entity Resolution
          */
         blocks = pipeBlockingGeorge(amazonProfiles, googleProfiles, duplicatePropagation);
-        Tuple r4 = pipeEntityResolutionInit(blocks, amazonProfiles, googleProfiles, duplicatePropagation);
+        ResultTuple r4 = pipeEntityResolutionInit(blocks, amazonProfiles, googleProfiles, duplicatePropagation);
 
         System.out.println("\n\n");
         System.out.println("-----------------");
