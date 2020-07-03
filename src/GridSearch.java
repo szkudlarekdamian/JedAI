@@ -24,14 +24,14 @@ public class GridSearch {
                                   AbstractDuplicatePropagation duplicatePropagation) {
         int[] windowSizes = {2,3};
 //        double[] thresholds = {0.05, 0.1, 0.15, 0.2};
-//        double[] thresholds = {0.35, 0.4};
-        double[] thresholds = {0.1, 0.3, 0.5};
+        double[] thresholds = {0.35, 0.4};
+//        double[] thresholds = {0.1, 0.3, 0.5};
 //        double[] entityThresholds = {0.01, 0.05, 0.1, 0.15};
-//        double[] entityThresholds = {0.01, 0.05, 0.1};
-        double[] entityThresholds = {0.1, 0.3, 0.5};
-        RepresentationModel[] representationModels = {RepresentationModel.TOKEN_BIGRAMS_TF_IDF};
+        double[] entityThresholds = {0.01, 0.05, 0.1};
+//        double[] entityThresholds = {0.1, 0.3, 0.5};
+//        RepresentationModel[] representationModels = {RepresentationModel.TOKEN_BIGRAMS_TF_IDF};
 //        RepresentationModel[] representationModels = {RepresentationModel.TOKEN_UNIGRAMS_TF_IDF};
-//        RepresentationModel[] representationModels = {RepresentationModel.TOKEN_TRIGRAMS_TF_IDF};
+        RepresentationModel[] representationModels = {RepresentationModel.TOKEN_TRIGRAMS_TF_IDF};
         SimilarityMetric[] similarityMetrics = {SimilarityMetric.COSINE_SIMILARITY};
 
         List<String[]> recordsList = new ArrayList<>();
