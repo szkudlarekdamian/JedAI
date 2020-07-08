@@ -97,7 +97,7 @@ public class Detailed {
 
         blocksPerformance0.printStatistics(Duration.between(s0, s1).toMillis(), blockBuilding.getMethodConfiguration(), blockBuilding.getMethodName());
         blocksPerformance1.printStatistics(Duration.between(s1, s2).toMillis(), blockProcessing.getMethodConfiguration(), blockProcessing.getMethodName());
-        blocksPerformance2.printStatistics(Duration.between(s2, s3).toMillis(), comparisonCleaning.getMethodConfiguration(), blockProcessing.getMethodName());
+        blocksPerformance2.printStatistics(Duration.between(s2, s3).toMillis(), comparisonCleaning.getMethodConfiguration(), comparisonCleaning.getMethodName());
 
         ClustersPerformance clustersPerformance = new ClustersPerformance(clusters, duplicatePropagation);
         clustersPerformance.setStatistics();
